@@ -14,32 +14,44 @@ export default function App() {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [notices, setNotices] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = useCallback(async (files: FileList | null) => {
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
+    setIsProcessing(true);
     const newNotices: string[] = [];
     const allProcessedData: OrderData[] = [];
 
-    for (const file of Array.from(files)) {
-      const result = await processExcelFile(file);
-      if (result.errors.length > 0) {
-        newNotices.push(...result.errors);
+    try {
+      for (const file of Array.from(files)) {
+        const result = await processExcelFile(file);
+        if (result.errors.length > 0) {
+          newNotices.push(...result.errors);
+        }
+        allProcessedData.push(...result.data);
       }
-      allProcessedData.push(...result.data);
-    }
 
-    if (allProcessedData.length > 0) {
-      setOrders(prev => [...prev, ...allProcessedData]);
-    }
-    if (newNotices.length > 0) {
-      setNotices(prev => [...prev, ...newNotices]);
+      if (allProcessedData.length > 0) {
+        setOrders(prev => [...prev, ...allProcessedData]);
+      } else if (newNotices.length === 0) {
+        newNotices.push("파일에서 변환할 데이터를 찾지 못했습니다. 시트명과 형식을 확인해 주세요.");
+      }
+      
+      if (newNotices.length > 0) {
+        setNotices(prev => [...prev, ...newNotices]);
+      }
+    } catch (error) {
+      setNotices(prev => [...prev, "파일 처리 중 예기치 않은 오류가 발생했습니다."]);
+    } finally {
+      setIsProcessing(false);
     }
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleFiles(e.target.files);
+    e.target.value = ''; // Reset to allow re-uploading same file
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -134,23 +146,32 @@ export default function App() {
               isDragging 
                 ? 'border-blue-500 bg-blue-50' 
                 : 'border-gray-300 hover:border-blue-400 group'
-            }`}
+            } ${isProcessing ? 'opacity-50 pointer-events-none cursor-wait' : ''}`}
           >
-            <input
-              type="file"
-              multiple
-              accept=".xls,.xlsx"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-            <div className={`p-3 rounded-full mb-3 transition-transform duration-300 group-hover:scale-110 ${
-              isDragging ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600'
-            }`}>
-              <Upload size={24} />
-            </div>
-            <p className="text-sm font-medium text-gray-700">Click or drag Excel files here to upload</p>
-            <p className="text-xs text-gray-400 mt-1">Supported sources: Book Compass, The Magazine, Nice Book</p>
+            {isProcessing ? (
+              <div className="flex flex-col items-center animate-pulse">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-sm font-medium text-blue-600">파일 처리 중...</p>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="file"
+                  multiple
+                  accept=".xls,.xlsx"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                />
+                <div className={`p-3 rounded-full mb-3 transition-transform duration-300 group-hover:scale-110 ${
+                  isDragging ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600'
+                }`}>
+                  <Upload size={24} />
+                </div>
+                <p className="text-sm font-medium text-gray-700">Click or drag Excel files here to upload</p>
+                <p className="text-xs text-gray-400 mt-1">Supported sources: Book Compass, The Magazine, Nice Book</p>
+              </>
+            )}
           </section>
 
           <aside className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-sm relative overflow-hidden">
