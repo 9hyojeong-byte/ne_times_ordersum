@@ -43,10 +43,17 @@ export default function App() {
     ));
   };
 
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const clearAll = () => {
-    if (confirm('모든 데이터를 삭제하시겠습니까?')) {
+    if (showConfirm) {
       setOrders([]);
       setNotices([]);
+      setPastedValue('');
+      setShowConfirm(false);
+    } else {
+      setShowConfirm(true);
+      setTimeout(() => setShowConfirm(false), 3000); // 3초 후 초기화
     }
   };
 
@@ -72,20 +79,24 @@ export default function App() {
     <div className="min-h-screen bg-[#f9fafb] text-[#111827] font-sans p-6">
       <div className="max-w-7xl mx-auto space-y-6 flex flex-col h-[calc(100vh-3rem)]">
         {/* Header */}
-        <header className="flex justify-between items-center pb-4 border-b border-gray-200">
+        <header className="flex justify-between items-center pb-4 border-b border-gray-200 relative z-50">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">EX</div>
             <h1 className="text-xl font-bold tracking-tight">
-              Excel Order Merger <span className="text-gray-400 font-normal ml-2 text-sm italic">v1.2.0</span>
+              Excel Order Merger <span className="text-gray-400 font-normal ml-2 text-sm italic">v1.2.0 - 구효정</span>
             </h1>
           </div>
           <div className="flex items-center gap-2">
             {orders.length > 0 && (
               <button 
                 onClick={clearAll}
-                className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                className={`px-4 py-2 text-sm border rounded transition-all font-medium relative ${
+                  showConfirm 
+                    ? 'bg-red-600 text-white border-red-600 animate-pulse' 
+                    : 'bg-red-50/50 text-red-600 border-red-200 hover:bg-red-50'
+                }`}
               >
-                Clear All
+                {showConfirm ? '정말 삭제할까요? (다시 클릭)' : '전체 삭제 (Clear All)'}
               </button>
             )}
             <button
@@ -98,7 +109,7 @@ export default function App() {
               }`}
             >
               <Download size={16} />
-              Export to Excel (.xlsx)
+              엑셀로 다운받기 (.xlsx)
             </button>
           </div>
         </header>
@@ -111,7 +122,7 @@ export default function App() {
             }`}
           >
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Paste Data from Excel</h3>
+              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">엑셀 데이터를 붙여넣기 해주세요. - 나이스북, 북콤파스, 북매거진 형식 지원 </h3>
               <button 
                 onClick={() => handlePasteData(pastedValue)}
                 disabled={!pastedValue.trim() || isProcessing}
@@ -139,11 +150,11 @@ export default function App() {
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-50 pb-2">Processing Summary</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-end">
-                <span className="text-sm text-gray-500">Merged Rows</span>
+                <span className="text-sm text-gray-500">인식된 주문 건 수</span>
                 <span className="text-2xl font-mono leading-none font-medium">{orders.length.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-end">
-                <span className="text-sm text-gray-500">Source Files</span>
+                <span className="text-sm text-gray-500">인식된 파일 수</span>
                 <span className="text-2xl font-mono leading-none font-medium">{sourceFilesCount.toString().padStart(2, '0')}</span>
               </div>
             </div>
