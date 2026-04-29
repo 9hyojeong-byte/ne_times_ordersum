@@ -3,70 +3,38 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, Trash2, Plus, AlertCircle, FileSpreadsheet, X } from 'lucide-react';
+import { Download, Trash2, Plus, AlertCircle, FileSpreadsheet, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { OrderData, OrderKey, OUTPUT_COLUMNS } from './types';
-import { processExcelFile } from './utils/excelProcessor';
+import { processExcelFile, processPastedText } from './utils/excelProcessor';
 
 export default function App() {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [notices, setNotices] = useState<string[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pastedValue, setPastedValue] = useState('');
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
+  const handlePasteData = async (text: string) => {
+    if (!text.trim()) return;
     setIsProcessing(true);
-    const newNotices: string[] = [];
-    const allProcessedData: OrderData[] = [];
-
     try {
-      for (const file of Array.from(files)) {
-        const result = await processExcelFile(file);
-        if (result.errors.length > 0) {
-          newNotices.push(...result.errors);
-        }
-        allProcessedData.push(...result.data);
+      const result = await processPastedText(text);
+      if (result.errors.length > 0) {
+        setNotices(prev => [...prev, ...result.errors]);
       }
-
-      if (allProcessedData.length > 0) {
-        setOrders(prev => [...prev, ...allProcessedData]);
-      } else if (newNotices.length === 0) {
-        newNotices.push("파일에서 변환할 데이터를 찾지 못했습니다. 시트명과 형식을 확인해 주세요.");
+      if (result.data.length > 0) {
+        setOrders(prev => [...prev, ...result.data]);
+        setPastedValue('');
+      } else if (result.errors.length === 0) {
+        setNotices(prev => [...prev, "데이터를 파싱하지 못했습니다. 형식을 확인해 주세요."]);
       }
-      
-      if (newNotices.length > 0) {
-        setNotices(prev => [...prev, ...newNotices]);
-      }
-    } catch (error) {
-      setNotices(prev => [...prev, "파일 처리 중 예기치 않은 오류가 발생했습니다."]);
+    } catch (err) {
+      setNotices(prev => [...prev, "데이터 처리 중 오류가 발생했습니다."]);
     } finally {
       setIsProcessing(false);
     }
-  }, []);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files);
-    e.target.value = ''; // Reset to allow re-uploading same file
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFiles(e.dataTransfer.files);
   };
 
   const updateCell = (id: string, key: OrderKey, value: string) => {
@@ -135,43 +103,36 @@ export default function App() {
           </div>
         </header>
 
-        {/* Top Controls Grid */}
+        {/* Paste Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <section
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`col-span-1 md:col-span-2 border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-10 px-4 text-center cursor-pointer transition-all duration-200 ${
-              isDragging 
-                ? 'border-blue-500 bg-blue-50' 
-                : 'border-gray-300 hover:border-blue-400 group'
-            } ${isProcessing ? 'opacity-50 pointer-events-none cursor-wait' : ''}`}
+            className={`col-span-1 md:col-span-2 border border-gray-200 bg-white rounded-xl flex flex-col p-4 shadow-sm transition-all duration-200 ${
+              isProcessing ? 'opacity-50 pointer-events-none cursor-wait' : ''
+            }`}
           >
-            {isProcessing ? (
-              <div className="flex flex-col items-center animate-pulse">
-                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="text-sm font-medium text-blue-600">파일 처리 중...</p>
-              </div>
-            ) : (
-              <>
-                <input
-                  type="file"
-                  multiple
-                  accept=".xls,.xlsx"
-                  className="hidden"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                />
-                <div className={`p-3 rounded-full mb-3 transition-transform duration-300 group-hover:scale-110 ${
-                  isDragging ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600'
-                }`}>
-                  <Upload size={24} />
-                </div>
-                <p className="text-sm font-medium text-gray-700">Click or drag Excel files here to upload</p>
-                <p className="text-xs text-gray-400 mt-1">Supported sources: Book Compass, The Magazine, Nice Book</p>
-              </>
-            )}
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Paste Data from Excel</h3>
+              <button 
+                onClick={() => handlePasteData(pastedValue)}
+                disabled={!pastedValue.trim() || isProcessing}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-[11px] font-bold uppercase hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400"
+              >
+                {isProcessing ? 'Processing...' : 'Apply Data'}
+              </button>
+            </div>
+            <textarea
+              className="flex-grow w-full h-32 md:h-full p-3 text-xs font-mono bg-gray-50 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all placeholder:text-gray-300 resize-none"
+              placeholder="엑셀에서 헤더(품목, 주문상품명, 정간물명 등)를 포함하여 데이터를 복사한 후 여기에 붙여넣으세요.&#10;예:&#10;품목	수령자	수령자휴대전화	...&#10;상품A	홍길동	010-1234-5678	..."
+              value={pastedValue}
+              onChange={(e) => setPastedValue(e.target.value)}
+              onPaste={(e) => {
+                // Optional: Auto-process on paste? 
+                // Let's stick to manual button to prevent accidental clicks
+              }}
+            />
+            <p className="mt-2 text-[10px] text-gray-400 italic">
+              헤더를 포함한 탭(Tab) 구분 형식의 텍스트를 지원합니다.
+            </p>
           </section>
 
           <aside className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-sm relative overflow-hidden">
@@ -239,7 +200,10 @@ export default function App() {
                   </tr>
                 ) : (
                   orders.map((order, index) => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors group">
+                    <tr 
+                      key={order.id} 
+                      className={`hover:bg-gray-50 transition-colors group ${order["상담내용 입력"] ? 'bg-yellow-50/70' : ''}`}
+                    >
                       <td className="px-3 py-2 text-center text-gray-400 font-mono text-[11px] border-r border-gray-100">{index + 1}</td>
                       {OUTPUT_COLUMNS.map(col => {
                         const isDate = col.includes('일');

@@ -23,7 +23,8 @@ function getLastDayOfMonth(year: number, month: number): string {
 function formatYearMonth(val: any, type: 'start' | 'end'): string {
   if (!val) return '';
   const str = String(val).trim();
-  const match = str.match(/^(\d{4})[ \.\-]?(\d{1,2})/);
+  // Match YYYY and MM with optional characters in between (like "년", " ", ".", "-", etc)
+  const match = str.match(/(\d{4})\D*(\d{1,2})/);
   
   if (match) {
     const year = parseInt(match[1]);
@@ -144,13 +145,28 @@ function processBookCompass(data: any[], result: ProcessingResult) {
     item["시작일"] = formatYearMonth(getValue(row, '시작호수'), 'start');
     item["종료일"] = formatYearMonth(getValue(row, '만기호수'), 'end');
     
-    // Delivery mapping
-    const name = clean(getValue(row, '수령자', '수령자명')) || clean(getValue(row, '주문자', '주문자명'));
-    item["이름(배송)"] = name;
-    item["휴대폰(배송)"] = clean(getValue(row, '수령자휴대전화', '수령자휴대폰', '연락처', '전화번호', '휴대전화'));
-    item["우편번호(배송)"] = clean(getValue(row, '우편번호', '수령자우편번호'));
-    item["주소1(배송)"] = clean(getValue(row, '주소', '수령자주소'));
-    item["상세주소(배송)"] = clean(getValue(row, '상세주소', '수령자상세주소'));
+    // Delivery & Orderer Mapping
+    item["이름(배송)"] = clean(getValue(row, '수령자', '수령자명')) || clean(getValue(row, '주문자', '주문자명'));
+    
+    // 전화번호 -> 전번(배송), 전번(주문)
+    const phone = clean(getValue(row, '전화번호', '연락처', '수령자휴대전화', '수령자전화'));
+    item["전번(배송)"] = phone;
+    item["전번(주문)"] = phone;
+
+    // 우편번호 -> 우편번호(배송), 우편번호(주문)
+    const zip = clean(getValue(row, '우편번호', '수령자우편번호'));
+    item["우편번호(배송)"] = zip;
+    item["우편번호(주문)"] = zip;
+
+    // 주    소 -> 주소1(배송), 주소1(주문)
+    const address = clean(getValue(row, '주소', '수령자주소'));
+    item["주소1(배송)"] = address;
+    item["주소1(주문)"] = address;
+
+    // 회 사 명 -> 상세주소(배송), 상세주소(주문)
+    const company = clean(getValue(row, '회사명', '수령자상세주소', '상세주소'));
+    item["상세주소(배송)"] = company;
+    item["상세주소(주문)"] = company;
 
     result.data.push(item);
   });
@@ -179,12 +195,43 @@ function processTheMagazine(data: any[], result: ProcessingResult) {
       item["종료일"] = formatYearMonth(dateMatch[2], 'end');
     }
 
-    // Delivery
+    // 1. 이름(배송)
     item["이름(배송)"] = clean(getValue(row, '수령인', '수취인명', '구매자명'));
-    item["휴대폰(배송)"] = clean(getValue(row, '수령인휴대폰', '수취인휴대폰', '구매자휴대폰'));
-    item["우편번호(배송)"] = clean(getValue(row, '수령인우편번호', '수취인우편번호'));
-    item["주소1(배송)"] = clean(getValue(row, '수령인주소', '수취인주소'));
-    item["상세주소(배송)"] = clean(getValue(row, '수령인상세주소', '수취인상세주소'));
+
+    // 2. 휴대폰: '수령인 휴대전화'를 주문/배송 모두에 입력
+    const mobile = clean(getValue(row, '수령인 휴대전화', '수령인휴대폰', '구매자휴대폰'));
+    item["휴대폰(주문)"] = mobile;
+    item["휴대폰(배송)"] = mobile;
+
+    // 3. 전번: '수령인 전화번호'를 주문/배송 모두에 입력
+    const phone = clean(getValue(row, '수령인 전화번호', '수령인전화번호', '구매자전화번호'));
+    item["전번(주문)"] = phone;
+    item["전번(배송)"] = phone;
+
+    // 4. 우편번호: '수령인 우편번호'를 주문/배송 모두에 입력
+    const zip = clean(getValue(row, '수령인 우편번호', '수령인우편번호', '구매자우편번호'));
+    item["우편번호(주문)"] = zip;
+    item["우편번호(배송)"] = zip;
+
+    // 5. 주소: '수령인 주소(전체)'를 4번째 띄어쓰기 기준으로 분리
+    const addressFull = clean(getValue(row, '수령인 주소(전체)', '수령인주소', '구매자주소'));
+    if (addressFull) {
+      const parts = addressFull.split(' ');
+      if (parts.length > 4) {
+        const addr1 = parts.slice(0, 4).join(' ');
+        const addr2 = parts.slice(4).join(' ');
+        item["주소1(주문)"] = addr1;
+        item["상세주소(주문)"] = addr2;
+        item["주소1(배송)"] = addr1;
+        item["상세주소(배송)"] = addr2;
+      } else {
+        item["주소1(주문)"] = addressFull;
+        item["주소1(배송)"] = addressFull;
+      }
+    }
+
+    // 6. 상담내용 입력: '배송메시지' 입력
+    item["상담내용 입력"] = clean(getValue(row, '배송메시지', '배송옵션'));
 
     result.data.push(item);
   });
@@ -206,15 +253,88 @@ function processNiceBook(data: any[], result: ProcessingResult) {
     item["시작일"] = normalizeDate(getValue(row, '구독시작일', '시작일'));
     item["종료일"] = normalizeDate(getValue(row, '구독마감일', '종료일', '마감일'));
 
-    // Delivery
-    item["이름(배송)"] = clean(getValue(row, '수령자명', '수취인명', '주문자명'));
-    item["휴대폰(배송)"] = clean(getValue(row, '수령자휴대폰', '수령자전화', '수취인휴대폰'));
-    item["우편번호(배송)"] = clean(getValue(row, '수령자우편번호', '수취인우편번호'));
-    item["주소1(배송)"] = clean(getValue(row, '수령자주소', '수취인주소'));
-    item["상세주소(배송)"] = clean(getValue(row, '수령자상세주소', '수취인상세주소'));
+    // 1. 이름(배송): 주문자명 + 구독자명
+    const ordererName = clean(getValue(row, '주문자명'));
+    const subscriberName = clean(getValue(row, '구독자명'));
+    item["이름(배송)"] = `${ordererName} ${subscriberName}`.trim();
+
+    // 2. 전번: '전화' 데이터를 주문/배송 모두에 입력
+    const phone = clean(getValue(row, '전화'));
+    item["전번(주문)"] = phone;
+    item["전번(배송)"] = phone;
+
+    // 3. 휴대폰: '휴대폰' 데이터를 주문/배송 모두에 입력
+    const mobile = clean(getValue(row, '휴대폰'));
+    item["휴대폰(주문)"] = mobile;
+    item["휴대폰(배송)"] = mobile;
+
+    // 4. 우편번호: '[' ']' 제거 후 주문/배송 모두에 입력
+    const zipRaw = clean(getValue(row, '우편번호', '수령자우편번호'));
+    const zipClean = zipRaw.replace(/[\[\]]/g, '');
+    item["우편번호(주문)"] = zipClean;
+    item["우편번호(배송)"] = zipClean;
+
+    // 5. 주소: ')' 를 기준으로 주소1과 상세주소 분리
+    const addressRaw = clean(getValue(row, '주소', '수령자주소'));
+    const parenIndex = addressRaw.indexOf(')');
+    if (parenIndex !== -1) {
+      const addr1 = addressRaw.substring(0, parenIndex + 1).trim();
+      const addr2 = addressRaw.substring(parenIndex + 1).trim();
+      item["주소1(주문)"] = addr1;
+      item["상세주소(주문)"] = addr2;
+      item["주소1(배송)"] = addr1;
+      item["상세주소(배송)"] = addr2;
+    } else {
+      item["주소1(주문)"] = addressRaw;
+      item["주소1(배송)"] = addressRaw;
+    }
 
     result.data.push(item);
   });
+}
+
+/**
+ * Processes pasted TSV text
+ */
+export async function processPastedText(text: string): Promise<ProcessingResult> {
+  const result: ProcessingResult = { data: [], errors: [] };
+  if (!text.trim()) return result;
+
+  try {
+    // Basic TSV parsing
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) {
+      result.errors.push("데이터가 너무 적거나 형식이 올바르지 않습니다.");
+      return result;
+    }
+
+    const headers = lines[0].split('\t').map(h => h.trim());
+    const dataRows = lines.slice(1).map(line => {
+      const cols = line.split('\t');
+      const row: any = {};
+      headers.forEach((h, i) => {
+        row[h] = cols[i] || '';
+      });
+      return row;
+    });
+
+    // Strategy detection
+    const hStr = headers.join(' ');
+    if (hStr.includes('품목') && (hStr.includes('시작호수') || hStr.includes('만기호수'))) {
+      processBookCompass(dataRows, result);
+    } else if (hStr.includes('주문상품명') || hStr.includes('상품옵션')) {
+      processTheMagazine(dataRows, result);
+    } else if (hStr.includes('정간물명') || hStr.includes('구독시작일')) {
+      processNiceBook(dataRows, result);
+    } else {
+      result.errors.push("데이터 형식을 실시간으로 판별하지 못했습니다. 첫 줄에 정확한 헤더(품목, 주문상품명, 정간물명 등)가 포함되어 있는지 확인해 주세요.");
+    }
+
+    return result;
+  } catch (err) {
+    result.errors.push("붙여넣은 데이터를 처리하는 중 오류가 발생했습니다.");
+    return result;
+  }
 }
 
 function normalizeDate(val: any): string {
