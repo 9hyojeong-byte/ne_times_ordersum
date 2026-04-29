@@ -1,0 +1,6 @@
+{
+  "name": "Excel Order Merger",
+  "description": "다양한 주문처의 엑셀 데이터를 하나의 통합 형식으로 변환 및 병합하는 도구",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
