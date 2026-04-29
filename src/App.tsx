@@ -66,7 +66,19 @@ export default function App() {
     const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: OUTPUT_COLUMNS });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Output");
-    XLSX.writeFile(workbook, `merged_orders_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    // Generate filename: 주문건합본_소스1_소스2_YYMMDD.xlsx
+    const sources = Array.from(new Set(orders.map(o => o["이름(주문)"]))).filter(Boolean);
+    const sourceStr = sources.length > 0 ? `_${sources.join('_')}` : '';
+
+    const kst = new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"});
+    const d = new Date(kst);
+    const yy = d.getFullYear().toString().slice(-2);
+    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+    const dd = d.getDate().toString().padStart(2, '0');
+    const dateStr = `${yy}${mm}${dd}`;
+
+    XLSX.writeFile(workbook, `주문건합본${sourceStr}_${dateStr}.xlsx`);
   };
 
   const removeNotice = (index: number) => {
