@@ -95,7 +95,7 @@ export default function App() {
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">EX</div>
             <h1 className="text-xl font-bold tracking-tight">
-              Excel Order Merger <span className="text-gray-400 font-normal ml-2 text-sm italic">v1.2.0 - 구효정</span>
+              NE times 외부주문내역 merger <span className="text-gray-400 font-normal ml-2 text-sm italic">v1.2.0 - 구효정</span>
             </h1>
           </div>
           <div className="flex items-center gap-2">
