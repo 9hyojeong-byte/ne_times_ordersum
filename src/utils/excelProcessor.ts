@@ -111,6 +111,9 @@ export async function processExcelFile(file: File): Promise<ProcessingResult> {
           } else if (trimmedName === 'yes24' || trimmedName.toLowerCase().includes('yes24')) {
             processYes24(rawData, result);
             foundValidSheet = true;
+          } else if (trimmedName === 'ssg' || trimmedName.toLowerCase().includes('ssg')) {
+            processSSG(rawData, result);
+            foundValidSheet = true;
           }
         });
 
@@ -125,11 +128,14 @@ export async function processExcelFile(file: File): Promise<ProcessingResult> {
           if (hStr.includes('주문번호') && hStr.includes('주문SEQ') && hStr.includes('상품명')) {
             processYes24(rawData, result);
             foundValidSheet = true;
+          } else if (hStr.includes('순번') && hStr.includes('상품명') && hStr.includes('수취인도로명주소')) {
+            processSSG(rawData, result);
+            foundValidSheet = true;
           }
         }
 
         if (!foundValidSheet) {
-          result.errors.push(`'${file.name}' 파일에서 지원하는 시트를 찾을 수 없습니다. (북콤파스, 더매거진, 나이스북, YES24)`);
+          result.errors.push(`'${file.name}' 파일에서 지원하는 시트를 찾을 수 없습니다. (북콤파스, 더매거진, 나이스북, YES24, SSG)`);
         }
         resolve(result);
       } catch (err) {
@@ -185,7 +191,7 @@ function getValue(row: any, ...possibleKeys: string[]): any {
 function mapBookCompassProductNumber(name: string): string {
   const cleanName = name.trim();
   if (cleanName === '엔이타임즈주니어(월간)') return '2546';
-  if (cleanName === '엔이타임즈') return '2554';
+  if (cleanName === '엔이타임즈') return '2544';
   if (cleanName === '엔이타임즈 주니어') return '2969';
   return name;
 }
@@ -234,7 +240,7 @@ function processBookCompass(data: any[], result: ProcessingResult) {
 
 function mapTheMagazineProductNumber(name: string): string {
   const cleanName = name.trim();
-  if (cleanName.includes('엔이타임즈 NE TIMES (중고등용-주간지)')) return '2554';
+  if (cleanName.includes('엔이타임즈 NE TIMES (중고등용-주간지)')) return '2544';
   if (cleanName.includes('엔이타임즈 주니어 NE TIMES JUNIOR (월간-연12회)')) return '2546';
   if (cleanName.includes('엔이타임즈 키즈 NE TIMES KIDS (어린이-주간지)')) return '2548';
   if (cleanName.includes('엔이타임즈 킨더 NE TIMES KINDER (주간지)')) return '2538';
@@ -309,7 +315,7 @@ function processTheMagazine(data: any[], result: ProcessingResult) {
 
 function mapNiceBookProductNumber(name: string): string {
   const cleanName = name.trim();
-  if (cleanName === '엔이 타임즈 NE times') return '2554';
+  if (cleanName === '엔이 타임즈 NE times') return '2544';
   if (cleanName === '엔이 타임즈 주니어 NE times JUNIOR') return '2546';
   if (cleanName === '엔이 타임즈 키즈 NE times KIDS') return '2548';
   if (cleanName === '엔이 타임즈 주니어 위클리 NE Times JUNIOR Weekly') return '2969';
@@ -372,6 +378,94 @@ function processNiceBook(data: any[], result: ProcessingResult) {
   });
 }
 
+function mapSSGProductNumber(name: string): string {
+  const lowerName = name.toLowerCase();
+
+  if (lowerName.includes('kids') && lowerName.includes('주간')) return '2548';
+  if (lowerName.includes('kinder') && lowerName.includes('주간')) return '2538';
+  if (lowerName.includes('junior') && lowerName.includes('주간')) return '2969';
+  if (lowerName.includes('junior w') && lowerName.includes('주간')) return '2969';
+  if (lowerName.includes('times') && lowerName.includes('주간') && !lowerName.includes('junior') && !lowerName.includes('kids') && !lowerName.includes('kinder')) return '2544';
+  if (lowerName.includes('junior') && lowerName.includes('월간')) return '2546';
+
+  return mapProductNumber(name);
+}
+
+function processSSG(data: any[], result: ProcessingResult) {
+  data.forEach((row) => {
+    const productName = clean(getValue(row, '상품명'));
+    
+    // Filter: Only include items with "정기구독"
+    if (!productName.includes('정기구독')) {
+      return;
+    }
+
+    const item = createEmptyRow();
+    
+    // Identity mapping
+    item["이름(주문)"] = "ssg"; 
+    
+    // Product Number Mapping
+    item["상품번호"] = mapSSGProductNumber(productName);
+
+    // Date Mapping: [출고예정일] 또는 [출고기준일] >> [시작일]
+    // SSG format is often YYYYMMDD string
+    let dateStr = clean(getValue(row, '출고예정일', '출고기준일'));
+    if (dateStr && dateStr.length === 8) {
+      dateStr = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+    }
+    
+    const normalizedStart = normalizeDate(dateStr);
+    item["시작일"] = normalizedStart;
+
+    // End date = Start date + 1 year
+    if (normalizedStart) {
+      const d = new Date(normalizedStart);
+      if (!isNaN(d.getTime())) {
+        d.setFullYear(d.getFullYear() + 1);
+        item["종료일"] = d.toISOString().split('T')[0];
+      }
+    }
+
+    // Phone & Zip Mapping
+    const tel = clean(getValue(row, '수취인전화번호')).replace(/--/g, '');
+    const mobile = clean(getValue(row, '수취인휴대전화번호'));
+    const zip = clean(getValue(row, '우편번호'));
+    
+    item["전번(배송)"] = tel;
+    item["전번(주문)"] = tel;
+    item["휴대폰(배송)"] = mobile;
+    item["휴대폰(주문)"] = mobile;
+    item["우편번호(배송)"] = zip;
+    item["우편번호(주문)"] = zip;
+
+    // Name Mapping
+    item["이름(배송)"] = clean(getValue(row, '수취인'));
+
+    // Address Mapping: 4th space split
+    const addressFull = clean(getValue(row, '수취인도로명주소'));
+    if (addressFull) {
+      const parts = addressFull.split(' ');
+      if (parts.length > 4) {
+        const addr1 = parts.slice(0, 4).join(' ');
+        const addr2 = parts.slice(4).join(' ');
+        item["주소1(배송)"] = addr1;
+        item["주소1(주문)"] = addr1;
+        item["상세주소(배송)"] = addr2;
+        item["상세주소(주문)"] = addr2;
+      } else {
+        item["주소1(배송)"] = addressFull;
+        item["주소1(주문)"] = addressFull;
+      }
+    }
+
+    // Memo
+    item["상담내용 입력"] = clean(getValue(row, '고객배송메모', '배송업무메모'));
+
+    result.data.push(item);
+  });
+}
+
 function mapYes24ProductNumber(name: string): string {
   const lowerName = name.toLowerCase();
 
@@ -379,7 +473,7 @@ function mapYes24ProductNumber(name: string): string {
   if (lowerName.includes('kids') && lowerName.includes('주간')) return '2548';
   if (lowerName.includes('kinder') && lowerName.includes('주간')) return '2538';
   if (lowerName.includes('junior') && lowerName.includes('주간')) return '2969';
-  if (lowerName.includes('times') && lowerName.includes('times') && lowerName.includes('주간') && !lowerName.includes('junior') && !lowerName.includes('kids') && !lowerName.includes('kinder')) return '2554';
+  if (lowerName.includes('times') && lowerName.includes('times') && lowerName.includes('주간') && !lowerName.includes('junior') && !lowerName.includes('kids') && !lowerName.includes('kinder')) return '2544';
   if (lowerName.includes('junior') && lowerName.includes('월간')) return '2546';
 
   return mapProductNumber(name);
@@ -492,6 +586,8 @@ export async function processPastedText(text: string): Promise<ProcessingResult>
       processNiceBook(dataRows, result);
     } else if (hStr.includes('주문번호') && hStr.includes('주문SEQ') && hStr.includes('상품명')) {
       processYes24(dataRows, result);
+    } else if (hStr.includes('순번') && hStr.includes('상품명') && hStr.includes('수취인도로명주소')) {
+      processSSG(dataRows, result);
     } else {
       result.errors.push("데이터 형식을 실시간으로 판별하지 못했습니다. 첫 줄에 정확한 헤더(품목, 주문상품명, 정간물명, 주문번호 등)가 포함되어 있는지 확인해 주세요.");
     }
