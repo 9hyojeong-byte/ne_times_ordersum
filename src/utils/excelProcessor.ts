@@ -46,6 +46,39 @@ function clean(val: any): string {
 }
 
 /**
+ * Maps product names to specific product numbers
+ */
+function mapProductNumber(name: string): string {
+  const cleanName = name.trim().replace(/\s+/g, ' ');
+  const lowerName = cleanName.toLowerCase();
+
+  // NE Times (2544)
+  if (
+    cleanName === '엔이 타임즈 NE times' ||
+    cleanName === '엔이타임즈' ||
+    lowerName === '엔이타임즈 ne times'
+  ) {
+    return '2544';
+  }
+
+  // NE Times Junior (2546)
+  if (
+    cleanName === '엔이타임즈주니어(월간)' ||
+    lowerName === '엔이타임즈 주니어 ne times junior' ||
+    lowerName === '엔이 타임즈 주니어 ne times junior'
+  ) {
+    return '2546';
+  }
+
+  // NE Times Kids (2548)
+  if (lowerName === '엔이 타임즈 키즈 ne times kids') {
+    return '2548';
+  }
+
+  return name;
+}
+
+/**
  * Processes a single sheet and converts it to our format
  */
 export async function processExcelFile(file: File): Promise<ProcessingResult> {
@@ -141,7 +174,7 @@ function processBookCompass(data: any[], result: ProcessingResult) {
   data.forEach((row) => {
     const item = createEmptyRow();
     item["이름(주문)"] = "북콤파스";
-    item["상품번호"] = clean(getValue(row, '품목'));
+    item["상품번호"] = mapProductNumber(clean(getValue(row, '품목')));
     item["시작일"] = formatYearMonth(getValue(row, '시작호수'), 'start');
     item["종료일"] = formatYearMonth(getValue(row, '만기호수'), 'end');
     
@@ -185,7 +218,7 @@ function processTheMagazine(data: any[], result: ProcessingResult) {
     
     // Product Number
     const rawProd = clean(getValue(row, '주문상품명'));
-    item["상품번호"] = rawProd.split('(')[0].trim();
+    item["상품번호"] = mapProductNumber(rawProd.split('(')[0].trim());
 
     // Dates from 상품옵션
     const options = clean(getValue(row, '상품옵션'));
@@ -247,7 +280,7 @@ function processNiceBook(data: any[], result: ProcessingResult) {
   data.forEach((row) => {
     const item = createEmptyRow();
     item["이름(주문)"] = "나이스북";
-    item["상품번호"] = clean(getValue(row, '정간물명'));
+    item["상품번호"] = mapProductNumber(clean(getValue(row, '정간물명')));
     
     // Date normalization
     item["시작일"] = normalizeDate(getValue(row, '구독시작일', '시작일'));

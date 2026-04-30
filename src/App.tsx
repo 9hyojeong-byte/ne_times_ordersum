@@ -65,7 +65,7 @@ export default function App() {
     const dataToExport = orders.map(({ id, ...rest }) => rest);
     const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: OUTPUT_COLUMNS });
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Output");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
 
     // Generate filename: 주문건합본_소스1_소스2_YYMMDD.xlsx
     const sources = Array.from(new Set(orders.map(o => o["이름(주문)"]))).filter(Boolean);
