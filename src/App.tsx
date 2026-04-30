@@ -134,7 +134,7 @@ export default function App() {
             }`}
           >
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">엑셀 데이터를 붙여넣기 해주세요. - 나이스북, 북콤파스, 북매거진 형식 지원 </h3>
+              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">엑셀 데이터를 붙여넣기 해주세요. - yes24, 나이스북, 북콤파스, 북매거진 형식 지원 </h3>
               <button 
                 onClick={() => handlePasteData(pastedValue)}
                 disabled={!pastedValue.trim() || isProcessing}
@@ -238,6 +238,7 @@ export default function App() {
                           if (order[col] === '북콤파스') colorClass = "text-blue-600 font-medium";
                           if (order[col] === '더매거진') colorClass = "text-orange-600 font-medium";
                           if (order[col] === '나이스북') colorClass = "text-purple-600 font-medium";
+                          if (order[col] === 'yes24') colorClass = "text-emerald-600 font-medium";
                         }
 
                         return (
