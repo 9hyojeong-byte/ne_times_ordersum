@@ -126,7 +126,7 @@ export async function processExcelFile(file: File): Promise<ProcessingResult> {
 function createEmptyRow(): OrderData {
   return {
     id: crypto.randomUUID(),
-    "정산구분": "능률",
+    "정산구분": "GARA2",
     "상품번호": "",
     "시작일": "",
     "종료일": "",
